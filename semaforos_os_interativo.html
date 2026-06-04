@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semáforo Binário — SO</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --surface2: #1a1e29;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.14);
+
+    --green: #00e87a;
+    --green-dim: #00e87a22;
+    --green-mid: #00e87a55;
+    --red: #ff4466;
+    --red-dim: #ff446622;
+    --red-mid: #ff446655;
+    --amber: #ffaa00;
+    --amber-dim: #ffaa0022;
+    --blue: #4d9fff;
+    --blue-dim: #4d9fff18;
+
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 2rem;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 20% 10%, #00e87a0a 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 80% 80%, #4d9fff08 0%, transparent 60%);
+  }
+
+  h1 {
+    font-size: 13px;
+    font-family: var(--mono);
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h1::before {
+    content: '';
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.25rem;
+    transition: border-color .3s;
+  }
+  .card:hover { border-color: var(--border2); }
+
+  .card-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+
+  /* ── Semáforo ── */
+  .sem-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .sem-ring {
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    transition: all .4s cubic-bezier(.4,0,.2,1);
+  }
+  .sem-ring::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    transition: all .4s;
+  }
+  .sem-ring.free {
+    background: var(--green-dim);
+    border: 2px solid var(--green);
+    box-shadow: 0 0 30px var(--green-mid), inset 0 0 20px var(--green-dim);
+  }
+  .sem-ring.free::before {
+    border: 1px solid var(--green-mid);
+    animation: spin-ring 4s linear infinite;
+  }
+  .sem-ring.busy {
+    background: var(--red-dim);
+    border: 2px solid var(--red);
+    box-shadow: 0 0 30px var(--red-mid), inset 0 0 20px var(--red-dim);
+  }
+  .sem-ring.busy::before {
+    border: 1px solid var(--red-mid);
+  }
+
+  @keyframes spin-ring {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .sem-val {
+    font-family: var(--mono);
+    font-size: 40px;
+    font-weight: 700;
+    transition: all .3s;
+  }
+  .free .sem-val { color: var(--green); }
+  .busy .sem-val { color: var(--red); }
+
+  .sem-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    transition: color .3s;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+
+  button {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    flex: 1;
+    letter-spacing: 0.05em;
+    transition: all .15s;
+  }
+  button:hover { background: #222738; border-color: rgba(255,255,255,0.25); transform: translateY(-1px); }
+  button:active { transform: translateY(0) scale(0.98); }
+
+  .btn-wait { border-color: #ff446644; }
+  .btn-wait:hover { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+  .btn-signal { border-color: #00e87a44; }
+  .btn-signal:hover { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+
+  .queue-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+  }
+  .queue-pill span { color: var(--amber); font-weight: 600; }
+
+  /* ── Seção crítica ── */
+  .cs-box {
+    border: 1.5px dashed var(--border2);
+    border-radius: 12px;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 12px;
+    transition: all .3s;
+  }
+  .cs-box.occupied {
+    border-color: var(--green);
+    background: var(--green-dim);
+    color: var(--green);
+    box-shadow: 0 0 20px var(--green-dim);
+  }
+
+  /* ── Processos ── */
+  .proc-box {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    transition: all .3s;
+    background: var(--surface2);
+  }
+  .proc-box:last-child { margin-bottom: 0; }
+  .proc-box.running {
+    border-color: var(--green);
+    background: var(--green-dim);
+    box-shadow: 0 0 16px var(--green-dim);
+  }
+  .proc-box.waiting {
+    border-color: var(--amber);
+    background: var(--amber-dim);
+    box-shadow: 0 0 16px var(--amber-dim);
+  }
+
+  .proc-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .proc-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-idle   { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+  .badge-run    { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+  .badge-wait   { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
+
+  .proc-btns { display: flex; gap: 6px; }
+  .proc-btns button { font-size: 10px; padding: 4px 10px; flex: none; }
+
+  /* ── Log ── */
+  .log-wrap {
+    max-height: 160px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
+  }
+  .log-entry {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .log-entry:last-child { border: none; }
+  .log-entry .ts {
+    color: #333a4d;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+  .log-entry.ev-wait   .msg { color: #ff6685; }
+  .log-entry.ev-signal .msg { color: var(--green); }
+  .log-entry.ev-block  .msg { color: var(--amber); }
+  .log-entry.ev-enter  .msg { color: var(--blue); }
+  .log-entry.ev-warn   .msg { color: var(--amber); }
+
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .btn-clear {
+    font-size: 10px;
+    padding: 4px 10px;
+    flex: none;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<h1>Semáforo Binário — Simulação SO</h1>
+
+<div class="grid">
+  <!-- Semáforo -->
+  <div class="card" style="display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center">
+    <div class="card-label">Semáforo S</div>
+    <div class="sem-wrap">
+      <div id="sem-ring" class="sem-ring free">
+        <span id="sem-num" class="sem-val">1</span>
+      </div>
+      <div id="sem-status" class="sem-status" style="color:var(--green)">● Livre</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-wait" onclick="doWait()">wait() — P</button>
+      <button class="btn-signal" onclick="doSignal()">signal() — V</button>
+    </div>
+    <div class="queue-pill">fila: <span id="queue-count">0</span> processo(s)</div>
+  </div>
+
+  <!-- Seção crítica + Processos -->
+  <div class="card">
+    <div class="card-label">Seção Crítica</div>
+    <div id="cs-box" class="cs-box">
+      <span id="cs-content">— vazio —</span>
+    </div>
+
+    <div class="card-label" style="margin-bottom:8px">Processos</div>
+
+    <div id="proc-p1" class="proc-box idle">
+      <div class="proc-header">
+        <span class="proc-name">P1</span>
+        <span class="badge badge-idle" id="badge-p1">ocioso</span>
+      </div>
+      <div class="proc-btns">
+        <button class="btn-wait" onclick="procWait(1)">wait()</button>
+        <button class="btn-signal" onclick="procSignal(1)">signal()</button>
+      </div>
+    </div>
+
+    <div id="proc-p2" class="proc-box idle">
+      <div class="proc-header">
+        <span class="proc-name">P2</span>
+        <span class="badge badge-idle" id="badge-p2">ocioso</span>
+      </div>
+      <div class="proc-btns">
+        <button class="btn-wait" onclick="procWait(2)">wait()</button>
+        <button class="btn-signal" onclick="procSignal(2)">signal()</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="card">
+  <div class="log-header">
+    <div class="card-label" style="margin-bottom:0">Log de eventos</div>
+    <button class="btn-clear" onclick="clearLog()">limpar</button>
+  </div>
+  <div class="log-wrap" id="log">
+    <div class="log-entry ev-signal">
+      <span class="ts">00:00</span>
+      <span class="msg">Semáforo iniciado com S = 1 (livre)</span>
+    </div>
+  </div>
+</div>
+
+<script>
+let S = 1, queue = [], owner = null;
+const start = Date.now();
+
+function ts() {
+  const d = Math.floor((Date.now() - start) / 1000);
+  return String(Math.floor(d/60)).padStart(2,'0') + ':' + String(d%60).padStart(2,'0');
+}
+
+function updateUI() {
+  document.getElementById('sem-num').textContent = S;
+  document.getElementById('queue-count').textContent = queue.length;
+  const ring = document.getElementById('sem-ring');
+  const status = document.getElementById('sem-status');
+  const cs = document.getElementById('cs-content');
+  const csBox = document.getElementById('cs-box');
+  if (S >= 1) {
+    ring.className = 'sem-ring free';
+    status.textContent = '● Livre';
+    status.style.color = 'var(--green)';
+    cs.textContent = '— vazio —';
+    csBox.classList.remove('occupied');
+  } else {
+    ring.className = 'sem-ring busy';
+    status.textContent = '● Ocupado';
+    status.style.color = 'var(--red)';
+    cs.textContent = owner ? `P${owner} em execução` : 'Ocupado';
+    csBox.classList.add('occupied');
+  }
+}
+
+function addLog(msg, type = '') {
+  const log = document.getElementById('log');
+  const d = document.createElement('div');
+  d.className = 'log-entry' + (type ? ' ev-' + type : '');
+  d.innerHTML = `<span class="ts">${ts()}</span><span class="msg">${msg}</span>`;
+  log.insertBefore(d, log.firstChild);
+}
+
+function setProc(pid, state) {
+  const box = document.getElementById('proc-p' + pid);
+  const badge = document.getElementById('badge-p' + pid);
+  box.className = 'proc-box ' + state;
+  if (state === 'running')      { badge.className = 'badge badge-run';  badge.textContent = 'na seção crítica'; }
+  else if (state === 'waiting') { badge.className = 'badge badge-wait'; badge.textContent = 'aguardando...'; }
+  else                          { badge.className = 'badge badge-idle'; badge.textContent = 'ocioso'; }
+}
+
+function doWait() {
+  S--;
+  addLog(`wait() manual → S = ${S}`, S < 0 ? 'block' : 'wait');
+  if (S < 0) addLog('Processo bloqueado (S < 0)', 'block');
+  updateUI();
+}
+
+function doSignal() {
+  if (S < 1) {
+    S++;
+    addLog(`signal() manual → S = ${S}`, 'signal');
+    if (queue.length > 0) {
+      const p = queue.shift();
+      setProc(p, 'running'); owner = p;
+      addLog(`P${p} saiu da fila → entrou na seção crítica`, 'enter');
+    }
+  } else {
+    addLog('signal() ignorado — S já é 1', 'warn');
+  }
+  updateUI();
+}
+
+function procWait(pid) {
+  if (S > 0) {
+    S--; owner = pid; setProc(pid, 'running');
+    addLog(`P${pid} chamou wait() → S = ${S} → entrou na seção crítica`, 'enter');
+  } else {
+    queue.push(pid); S--; setProc(pid, 'waiting');
+    addLog(`P${pid} chamou wait() → S = ${S} → BLOQUEADO`, 'block');
+  }
+  updateUI();
+}
+
+function procSignal(pid) {
+  if (owner !== pid) { addLog(`P${pid} não está na seção crítica`, 'warn'); return; }
+  S++; owner = null; setProc(pid, 'idle');
+  addLog(`P${pid} chamou signal() → S = ${S} → saiu da seção crítica`, 'signal');
+  if (queue.length > 0) {
+    const next = queue.shift(); S--; owner = next; setProc(next, 'running');
+    addLog(`P${next} saiu da fila → entrou na seção crítica`, 'enter');
+  }
+  updateUI();
+}
+
+function clearLog() {
+  document.getElementById('log').innerHTML = '<div class="log-entry"><span class="ts">' + ts() + '</span><span class="msg">Log limpo.</span></div>';
+}
+
+updateUI();
+</script>
+</body>
+</html>
